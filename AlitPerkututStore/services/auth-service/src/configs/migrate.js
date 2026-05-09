@@ -1,6 +1,8 @@
 // Migrate for creating database and tabels
 import mysql from "mysql2/promise";
-import "dotenv/config"
+import "dotenv/config";
+import bcrypt from "bcrypt";
+const saltRounds = Number(process.env.SALT_ROUNDS);
 
 async function migrate() {
   let connection;
@@ -31,7 +33,7 @@ async function migrate() {
         name VARCHAR(100) NOT NULL,
         email VARCHAR(100) NOT NULL UNIQUE,
         password VARCHAR(255) NULL,
-        role ENUM('user','owner') NOT NULL DEFAULT 'user',
+        role ENUM('user','owner', 'admin') NOT NULL DEFAULT 'user',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -59,6 +61,11 @@ async function migrate() {
       `SELECT * FROM users WHERE role = 'owner' LIMIT 1`,
     );
 
+    const hashedPassword = await bcrypt.hash(
+      process.env.ADMIN_PASSWORD,
+      saltRounds,
+    );
+
     if (rows.length === 0) {
       // Insert admin
       await connection.query(
@@ -66,12 +73,7 @@ async function migrate() {
      INSERT INTO users (name, email, password, role)
      VALUES (?, ?, ?, ?)
       `,
-        [
-          "Super Admin",
-          process.env.ADMIN_EMAIL,
-          process.env.ADMIN_PASSWORD,
-          "owner",
-        ],
+        ["Super Admin", process.env.ADMIN_EMAIL, hashedPassword, "owner"],
       );
 
       console.log("First admin created!");
