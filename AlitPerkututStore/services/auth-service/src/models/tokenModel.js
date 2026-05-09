@@ -22,3 +22,7 @@ export const saveToken = async ({ user_id, token, expired_at }) => {
 
   return rows[0];
 };
+
+export const deleteToken = async (token) => {
+  await db.query(`DELETE FROM ${DB_NAME} WHERE token = ?`, [token]);
+};

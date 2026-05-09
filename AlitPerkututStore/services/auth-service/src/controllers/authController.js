@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import { createUser, findByEmail } from "../models/userModel.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwtUtil.js";
-import { saveToken } from "../models/tokenModel.js";
+import { deleteToken, saveToken } from "../models/tokenModel.js";
 const saltRounds = Number(process.env.SALT_ROUNDS);
 
 // Register user
@@ -206,6 +206,45 @@ export const login = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
+    });
+  }
+};
+
+// Logout
+export const logout = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    const accessToken = req.cookies.accessToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        error: "Access denied. No token provided.",
+      });
+    }
+
+    await deleteToken(refreshToken);
+
+    res.clearCookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    });
+
+    res.clearCookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    });
+
+    return res.status(200).json({
+      message: "Logged out",
+    });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
     });
   }
 };
