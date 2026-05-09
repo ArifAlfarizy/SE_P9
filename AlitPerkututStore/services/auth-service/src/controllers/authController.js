@@ -1,8 +1,14 @@
 import bcrypt from "bcrypt";
-import { createUser, findByEmail } from "../models/userModel.js";
+import jwt from "jsonwebtoken";
+import { createUser, findByEmail, findById } from "../models/userModel.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwtUtil.js";
-import { deleteToken, saveToken } from "../models/tokenModel.js";
+import {
+  deleteToken,
+  findTokenByToken,
+  saveToken,
+} from "../models/tokenModel.js";
 const saltRounds = Number(process.env.SALT_ROUNDS);
+const refreshSecret = process.env.JWT_REFRESH_SECRET;
 
 // Register user
 export const register = async (req, res) => {
@@ -218,7 +224,7 @@ export const logout = async (req, res) => {
 
     if (!refreshToken) {
       return res.status(401).json({
-        error: "Access denied. No token provided.",
+        error: "No token provided.",
       });
     }
 
@@ -239,6 +245,57 @@ export const logout = async (req, res) => {
     return res.status(200).json({
       message: "Logged out",
     });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
+
+// Refresh token
+export const refresh = async (req, res) => {
+  try {
+    const token = req.cookies.refreshToken;
+
+    if (!token) {
+      return res.status(401).json({
+        error: "No token provided.",
+      });
+    }
+
+    const decoded = jwt.verify(token, refreshSecret);
+
+    const tokenRecord = await findTokenByToken(token);
+
+    if (!tokenRecord) {
+      return res
+        .status(403)
+        .json({ message: "Refresh token revoked or expired" });
+    }
+
+    const user = await findById(decoded.id);
+
+    if (!user) {
+      return res.status(403).json({
+        message: "User not found!",
+      });
+    }
+
+    const newAccessToken = generateAccessToken(user);
+
+    res.cookie("accessToken", newAccessToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    });
+
+    return res.status(200).json({
+      accessToken: newAccessToken,
+    });
+
   } catch (err) {
     console.error(err);
 
