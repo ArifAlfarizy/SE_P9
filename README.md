@@ -149,7 +149,11 @@ Semua request dikirim ke Gateway di `http://localhost:4098`.
 
 ## Contoh Request & Response
 
-### Register
+---
+
+### 🔐 Auth
+
+#### Register User
 
 ```http
 POST /api/auth/public/register
@@ -162,6 +166,7 @@ Content-Type: application/json
 }
 ```
 
+✅ `201 Created`
 ```json
 {
   "message": "Register successfully",
@@ -175,7 +180,19 @@ Content-Type: application/json
 }
 ```
 
-### Login
+❌ `400 Bad Request` — field tidak lengkap
+```json
+{ "message": "Required fields: name, email, and password" }
+```
+
+❌ `409 Conflict` — email sudah dipakai
+```json
+{ "message": "Email already registered. Try logging in with that email!" }
+```
+
+---
+
+#### Login
 
 ```http
 POST /api/auth/public/login
@@ -187,6 +204,7 @@ Content-Type: application/json
 }
 ```
 
+✅ `200 OK`
 ```json
 {
   "message": "Berhasil login",
@@ -199,7 +217,360 @@ Content-Type: application/json
 }
 ```
 
-### Buat Order
+❌ `401 Unauthorized` — user tidak ditemukan
+```json
+{ "message": "User not found. Try register!" }
+```
+
+❌ `401 Unauthorized` — password salah
+```json
+{ "message": "Wrong email or password" }
+```
+
+---
+
+#### Logout
+
+```http
+POST /api/auth/public/logout
+Cookie: refreshToken=<refresh_token>
+```
+
+✅ `200 OK`
+```json
+{ "message": "Logged out" }
+```
+
+❌ `401 Unauthorized`
+```json
+{ "error": "No token provided." }
+```
+
+---
+
+#### Refresh Token
+
+```http
+POST /api/auth/public/refresh
+Cookie: refreshToken=<refresh_token>
+```
+
+✅ `200 OK`
+```json
+{ "accessToken": "<new_jwt_token>" }
+```
+
+❌ `403 Forbidden` — token sudah di-revoke atau expired
+```json
+{ "message": "Refresh token revoked or expired" }
+```
+
+---
+
+#### Register Admin
+
+```http
+POST /api/auth/admin/register
+Content-Type: application/json
+Cookie: accessToken=<jwt_token>
+
+{
+  "name": "Admin Toko",
+  "email": "admin@toko.com",
+  "password": "adminpass123"
+}
+```
+
+✅ `201 Created`
+```json
+{
+  "message": "Admin register successfully",
+  "data": {
+    "id": 2,
+    "name": "Admin Toko",
+    "email": "admin@toko.com",
+    "role": "admin"
+  },
+  "accessToken": "<jwt_token>"
+}
+```
+
+❌ `403 Forbidden` — bukan admin
+```json
+{ "message": "Forbidden access" }
+```
+
+---
+
+### 📦 List (Produk)
+
+#### Get All List
+
+```http
+GET /api/list
+Cookie: accessToken=<jwt_token>
+```
+
+✅ `200 OK`
+```json
+{
+  "message": "Lists data",
+  "data": [
+    {
+      "id": 1,
+      "name": "Kucing Persia",
+      "species": "Kucing",
+      "gender": "Betina",
+      "age_in_months": 6,
+      "price": 1500000,
+      "stock": 3,
+      "status": "available"
+    },
+    {
+      "id": 2,
+      "name": "Hamster Putih",
+      "species": "Hamster",
+      "gender": "Jantan",
+      "age_in_months": 2,
+      "price": 75000,
+      "stock": 10,
+      "status": "available"
+    }
+  ]
+}
+```
+
+---
+
+#### Get List by ID
+
+```http
+GET /api/list/1
+Cookie: accessToken=<jwt_token>
+```
+
+✅ `200 OK`
+```json
+{
+  "message": "List data",
+  "data": {
+    "id": 1,
+    "name": "Kucing Persia",
+    "species": "Kucing",
+    "gender": "Betina",
+    "age_in_months": 6,
+    "price": 1500000,
+    "stock": 3,
+    "status": "available"
+  }
+}
+```
+
+❌ `404 Not Found`
+```json
+{ "message": "List not found" }
+```
+
+---
+
+#### Tambah List (admin)
+
+```http
+POST /api/list
+Content-Type: application/json
+Cookie: accessToken=<jwt_token>
+
+{
+  "name": "Kelinci Anggora",
+  "species": "Kelinci",
+  "gender": "Betina",
+  "age_in_months": 4,
+  "price": 250000,
+  "stock": 5,
+  "status": "available"
+}
+```
+
+✅ `201 Created`
+```json
+{
+  "message": "List created successfully",
+  "data": {
+    "id": 3,
+    "name": "Kelinci Anggora",
+    "species": "Kelinci",
+    "gender": "Betina",
+    "age_in_months": 4,
+    "price": 250000,
+    "stock": 5,
+    "status": "available"
+  }
+}
+```
+
+❌ `403 Forbidden`
+```json
+{ "message": "Forbidden access" }
+```
+
+---
+
+#### Update List (admin)
+
+```http
+PATCH /api/list/3
+Content-Type: application/json
+Cookie: accessToken=<jwt_token>
+
+{
+  "price": 275000,
+  "stock": 8
+}
+```
+
+✅ `200 OK`
+```json
+{
+  "message": "List updated successfully",
+  "data": {
+    "id": 3,
+    "name": "Kelinci Anggora",
+    "price": 275000,
+    "stock": 8,
+    "status": "available"
+  }
+}
+```
+
+---
+
+#### Hapus List (admin)
+
+```http
+DELETE /api/list/3
+Cookie: accessToken=<jwt_token>
+```
+
+✅ `200 OK`
+```json
+{
+  "message": "List deleted successfully",
+  "data": {
+    "id": 3,
+    "name": "Kelinci Anggora"
+  }
+}
+```
+
+❌ `404 Not Found`
+```json
+{ "message": "List not found" }
+```
+
+---
+
+### 🛒 Order
+
+#### Get All Orders (admin)
+
+```http
+GET /api/order
+Cookie: accessToken=<jwt_token>
+
+# Filter by status (opsional)
+GET /api/order?status=ongoing
+```
+
+✅ `200 OK`
+```json
+{
+  "message": "Orders data",
+  "data": [
+    {
+      "id": 1,
+      "customer_id": 1,
+      "customer_name": "Budi Santoso",
+      "customer_phone": "08123456789",
+      "customer_address": "Jl. Merdeka No. 1, Jakarta",
+      "payment_method": "transfer",
+      "status": "ongoing",
+      "notes": "Titip di depan pintu",
+      "total_price": 3075000,
+      "created_at": "2024-01-15T08:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+#### Get My Orders (user)
+
+```http
+GET /api/order/my-orders
+Cookie: accessToken=<jwt_token>
+```
+
+✅ `200 OK`
+```json
+{
+  "message": "My orders data",
+  "data": [
+    {
+      "id": 1,
+      "customer_name": "Budi Santoso",
+      "status": "ongoing",
+      "total_price": 3075000,
+      "created_at": "2024-01-15T08:30:00.000Z",
+      "items": [
+        { "list_id": 1, "name": "Kucing Persia", "quantity": 2, "price": 1500000 },
+        { "list_id": 2, "name": "Hamster Putih", "quantity": 1, "price": 75000 }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+#### Get Order by ID (admin)
+
+```http
+GET /api/order/1
+Cookie: accessToken=<jwt_token>
+```
+
+✅ `200 OK`
+```json
+{
+  "message": "Order data",
+  "data": {
+    "id": 1,
+    "customer_id": 1,
+    "customer_name": "Budi Santoso",
+    "customer_phone": "08123456789",
+    "customer_address": "Jl. Merdeka No. 1, Jakarta",
+    "payment_method": "transfer",
+    "status": "ongoing",
+    "notes": "Titip di depan pintu",
+    "total_price": 3075000,
+    "created_at": "2024-01-15T08:30:00.000Z",
+    "items": [
+      { "list_id": 1, "name": "Kucing Persia", "quantity": 2, "price": 1500000 },
+      { "list_id": 2, "name": "Hamster Putih", "quantity": 1, "price": 75000 }
+    ]
+  }
+}
+```
+
+❌ `404 Not Found`
+```json
+{ "message": "Order not found" }
+```
+
+---
+
+#### Buat Order
 
 ```http
 POST /api/order
@@ -212,37 +583,105 @@ Cookie: accessToken=<jwt_token>
   "customer_address": "Jl. Merdeka No. 1, Jakarta",
   "payment_method": "transfer",
   "notes": "Titip di depan pintu",
+  "cod_schedule_at": "2024-01-20T10:00:00.000Z",
   "items": [
     { "list_id": 1, "quantity": 2 },
-    { "list_id": 3, "quantity": 1 }
+    { "list_id": 2, "quantity": 1 }
   ]
 }
 ```
 
+✅ `201 Created`
 ```json
 {
   "message": "Order created successfully",
   "data": {
     "id": 42,
     "customer_id": 1,
+    "customer_name": "Budi Santoso",
+    "customer_phone": "08123456789",
+    "customer_address": "Jl. Merdeka No. 1, Jakarta",
+    "payment_method": "transfer",
     "status": "ongoing",
-    "total_price": 150000,
-    "items": [...]
+    "notes": "Titip di depan pintu",
+    "total_price": 3075000,
+    "created_at": "2024-01-15T08:30:00.000Z",
+    "items": [
+      { "list_id": 1, "name": "Kucing Persia", "quantity": 2, "price": 1500000 },
+      { "list_id": 2, "name": "Hamster Putih", "quantity": 1, "price": 75000 }
+    ]
   }
 }
 ```
 
-### Refresh Token
-
-```http
-POST /api/auth/public/refresh
-Cookie: refreshToken=<refresh_token>
+❌ `400 Bad Request` — field wajib tidak ada
+```json
+{ "message": "customer_name, customer_phone, and customer_address are required" }
 ```
 
+❌ `400 Bad Request` — items kosong
+```json
+{ "message": "Order must have at least one item" }
+```
+
+❌ `400 Bad Request` — stok tidak cukup
+```json
+{ "message": "Insufficient stock for item: Kucing Persia" }
+```
+
+---
+
+#### Batalkan Order
+
+```http
+PATCH /api/order/42/cancel
+Cookie: accessToken=<jwt_token>
+```
+
+✅ `200 OK`
 ```json
 {
-  "accessToken": "<new_jwt_token>"
+  "message": "Order canceled successfully",
+  "data": {
+    "id": 42,
+    "status": "canceled"
+  }
 }
+```
+
+❌ `400 Bad Request` — order tidak bisa dibatalkan (sudah selesai/sudah canceled)
+```json
+{ "message": "Order cannot be canceled" }
+```
+
+❌ `403 Forbidden` — user mencoba cancel order orang lain
+```json
+{ "message": "Forbidden access" }
+```
+
+---
+
+#### Selesaikan Order (admin)
+
+```http
+PATCH /api/order/42/complete
+Cookie: accessToken=<jwt_token>
+```
+
+✅ `200 OK`
+```json
+{
+  "message": "Order completed successfully",
+  "data": {
+    "id": 42,
+    "status": "completed"
+  }
+}
+```
+
+❌ `400 Bad Request` — order tidak bisa diselesaikan
+```json
+{ "message": "Order cannot be completed" }
 ```
 
 ---
