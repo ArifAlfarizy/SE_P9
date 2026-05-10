@@ -7,13 +7,15 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "cd ../services/list-order-service && npm run migrate",
     "seed": "cd ../services/list-order-service && npm run seed",
-    "setup": "npm run migrate && npm run seed"
+    "setup": "npm run migrate && npm run seed",
+    "dev": "concurrently \"nodemon index.js\" \"cd ../services/auth-service && nodemon src/index.js\" \"cd ../services/list-order-service && node src/index.js\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "concurrently": "^9.2.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
