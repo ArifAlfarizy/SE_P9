@@ -7,6 +7,7 @@ import {
   completeOrder,
   findOrdersByStatus,
 } from "../models/orderModel.js";
+import { publish } from "../messaging/publisher.js";
 
 // Get all orders — admin only
 export const getAllOrdersController = async (req, res) => {
@@ -112,7 +113,8 @@ export const createOrderController = async (req, res) => {
     // Validate required fields
     if (!customer_name || !customer_phone || !customer_address) {
       return res.status(400).json({
-        message: "customer_name, customer_phone, and customer_address are required",
+        message:
+          "customer_name, customer_phone, and customer_address are required",
       });
     }
 
@@ -126,7 +128,8 @@ export const createOrderController = async (req, res) => {
     for (const item of items) {
       if (!item.list_id || !item.quantity || item.quantity < 1) {
         return res.status(400).json({
-          message: "Each item must have a valid list_id and quantity of at least 1",
+          message:
+            "Each item must have a valid list_id and quantity of at least 1",
         });
       }
     }
@@ -140,6 +143,15 @@ export const createOrderController = async (req, res) => {
       notes,
       cod_schedule_at,
       items,
+    });
+
+    // Publish event async
+    publish("order.created", {
+      orderId: newOrder.id,
+      customerId: newOrder.customer_id,
+      customerName: newOrder.customer_name,
+      totalPrice: newOrder.total_price,
+      createdAt: new Date().toISOString(),
     });
 
     return res.status(201).json({
@@ -174,7 +186,10 @@ export const cancelOrderController = async (req, res) => {
     }
 
     // Users can only cancel their own orders
-    if (role !== "admin" && String(existing.customer_id) !== String(customer_id)) {
+    if (
+      role !== "admin" &&
+      String(existing.customer_id) !== String(customer_id)
+    ) {
       return res.status(403).json({ message: "Forbidden access" });
     }
 

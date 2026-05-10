@@ -3,6 +3,8 @@ import "dotenv/config";
 import cookieParser from "cookie-parser";
 import listRouter from "./routes/listRoute.js";
 import orderRouter from "./routes/orderRoute.js";
+import { connectPublisher } from "./messaging/publisher.js";
+import { startConsumer } from "./messaging/consumer.js";
 const PORT = process.env.PORT;
 
 const app = express();
@@ -19,4 +21,7 @@ app.get("/", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on PORT: ${PORT}`);
+
+  await connectPublisher();
+  await startConsumer();
 });
