@@ -78,6 +78,8 @@ async function migrate() {
 
       console.log("First admin created!");
     }
+
+    console.log(`Migrate success!`);
   } catch (err) {
     console.error(err);
   } finally {
