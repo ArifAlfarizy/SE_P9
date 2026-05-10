@@ -32,19 +32,38 @@ app.use(
     target: "http://localhost:4198",
     changeOrigin: true,
     on: { proxyReq: injectUser, error: onError },
-  })
+  }),
 );
 
 // admin — wajib token
 app.use(
-  "/api/auth/admin",
-  verifyToken,
+  (req, res, next) => {
+    if (req.path.startsWith("/api/auth/admin")) {
+      return verifyToken(req, res, next);
+    }
+    next();
+  },
   createProxyMiddleware({
     pathFilter: "/api/auth/admin",
     target: "http://localhost:4198",
     changeOrigin: true,
     on: { proxyReq: injectUser, error: onError },
-  })
+  }),
+);
+
+app.use(
+  (req, res, next) => {
+    if (req.path.startsWith("/api/list")) {
+      return verifyToken(req, res, next);
+    }
+    next();
+  },
+  createProxyMiddleware({
+    pathFilter: "/api/list",
+    target: "http://localhost:4298",
+    changeOrigin: true,
+    on: { proxyReq: injectUser, error: onError },
+  }),
 );
 
 app.use((req, res) => {
