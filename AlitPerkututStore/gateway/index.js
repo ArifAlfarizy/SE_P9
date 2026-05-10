@@ -66,6 +66,21 @@ app.use(
   }),
 );
 
+app.use(
+  (req, res, next) => {
+    if (req.path.startsWith("/api/order")) {
+      return verifyToken(req, res, next);
+    }
+    next();
+  },
+  createProxyMiddleware({
+    pathFilter: "/api/order",
+    target: "http://localhost:4298",
+    changeOrigin: true,
+    on: { proxyReq: injectUser, error: onError },
+  }),
+);
+
 app.use((req, res) => {
   console.log(`[NO MATCH] ${req.method} ${req.path}`);
   res.status(404).json({ message: "Route not found in gateway" });
