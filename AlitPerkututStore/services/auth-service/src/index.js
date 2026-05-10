@@ -9,7 +9,7 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
-app.use("/auth", authRouter);
+app.use("/", authRouter);
 
 app.get("/", (req, res) => {
   res.send("auth-service");

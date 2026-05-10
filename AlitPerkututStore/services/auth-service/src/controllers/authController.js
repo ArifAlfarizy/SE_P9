@@ -78,7 +78,7 @@ export const register = async (req, res) => {
 // Register admin
 export const registerAdmin = async (req, res) => {
   try {
-    if (req.user.role !== "owner") {
+    if (req.headers["x-user-tole"] !== "owner") {
       return res
         .status(403)
         .json({ message: "Forbidden. Only owner can create " });

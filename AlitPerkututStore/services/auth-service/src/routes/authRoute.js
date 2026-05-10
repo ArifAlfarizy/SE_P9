@@ -11,7 +11,7 @@ import verifyToken from "../middlewares/authMiddleware.js";
 const authRouter = express.Router();
 
 authRouter.post("/register", register);
-authRouter.post("/registeradmin", verifyToken, registerAdmin);
+authRouter.post("/register-admin", registerAdmin);
 authRouter.post("/login", login);
 authRouter.post("/logout", logout);
 authRouter.post("/refresh", refresh);
