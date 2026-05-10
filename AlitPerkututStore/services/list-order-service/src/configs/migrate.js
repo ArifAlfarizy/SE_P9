@@ -46,6 +46,7 @@ async function migrate() {
       CREATE TABLE IF NOT EXISTS orders (
         id INT AUTO_INCREMENT PRIMARY KEY,
         order_number VARCHAR(100) NOT NULL UNIQUE,
+        customer_id INT NOT NULL,
         customer_name VARCHAR(255) NOT NULL,
         customer_phone VARCHAR(30) NOT NULL,
         customer_address TEXT NOT NULL,
