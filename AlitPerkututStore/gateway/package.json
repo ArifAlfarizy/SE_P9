@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate": "cd ../services/list-order-service && npm run migrate",
+    "seed": "cd ../services/list-order-service && npm run seed",
+    "setup": "npm run migrate && npm run seed"
   },
   "keywords": [],
   "author": "",
