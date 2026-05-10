@@ -4,7 +4,6 @@ const ORDER_TABLE = "orders";
 const ORDER_ITEMS_TABLE = "order_items";
 const LIST_TABLE = "list";
 
-// Generate order number: ORD-YYYYMMDD-XXXX
 const generateOrderNumber = () => {
   const date = new Date();
   const ymd = date.toISOString().slice(0, 10).replace(/-/g, "");
@@ -12,53 +11,43 @@ const generateOrderNumber = () => {
   return `ORD-${ymd}-${rand}`;
 };
 
-export const findAllOrders = async () => {
-  const [rows] = await db.query(`
-    SELECT 
-      o.*,
-      JSON_ARRAYAGG(
-        JSON_OBJECT(
-          'id', oi.id,
-          'list_id', oi.list_id,
-          'name', l.name,
-          'species', l.species,
-          'quantity', oi.quantity,
-          'price', oi.price
-        )
-      ) AS items
-    FROM ${ORDER_TABLE} o
-    LEFT JOIN ${ORDER_ITEMS_TABLE} oi ON oi.order_id = o.id
-    LEFT JOIN ${LIST_TABLE} l ON l.id = oi.list_id
-    GROUP BY o.id
-    ORDER BY o.created_at DESC
-  `);
+// Ambil items dari order tertentu
+const getOrderItems = async (order_id) => {
+  const [rows] = await db.query(
+    `SELECT oi.id, oi.list_id, oi.quantity, oi.price, l.name, l.species
+     FROM ${ORDER_ITEMS_TABLE} oi
+     LEFT JOIN ${LIST_TABLE} l ON l.id = oi.list_id
+     WHERE oi.order_id = ?`,
+    [order_id]
+  );
   return rows;
+};
+
+// Gabungkan orders dengan items-nya
+const attachItems = async (orders) => {
+  return Promise.all(
+    orders.map(async (order) => ({
+      ...order,
+      items: await getOrderItems(order.id),
+    }))
+  );
+};
+
+export const findAllOrders = async () => {
+  const [rows] = await db.query(
+    `SELECT * FROM ${ORDER_TABLE} ORDER BY created_at DESC`
+  );
+  return attachItems(rows);
 };
 
 export const findOrderById = async (id) => {
   const [rows] = await db.query(
-    `
-    SELECT 
-      o.*,
-      JSON_ARRAYAGG(
-        JSON_OBJECT(
-          'id', oi.id,
-          'list_id', oi.list_id,
-          'name', l.name,
-          'species', l.species,
-          'quantity', oi.quantity,
-          'price', oi.price
-        )
-      ) AS items
-    FROM ${ORDER_TABLE} o
-    LEFT JOIN ${ORDER_ITEMS_TABLE} oi ON oi.order_id = o.id
-    LEFT JOIN ${LIST_TABLE} l ON l.id = oi.list_id
-    WHERE o.id = ?
-    GROUP BY o.id
-  `,
+    `SELECT * FROM ${ORDER_TABLE} WHERE id = ?`,
     [id]
   );
-  return rows[0];
+  if (!rows[0]) return null;
+  const items = await getOrderItems(id);
+  return { ...rows[0], items };
 };
 
 export const findOrderByNumber = async (order_number) => {
@@ -66,38 +55,25 @@ export const findOrderByNumber = async (order_number) => {
     `SELECT * FROM ${ORDER_TABLE} WHERE order_number = ?`,
     [order_number]
   );
-  return rows[0];
+  return rows[0] || null;
 };
 
-// Get all orders belonging to a specific customer
+export const findOrdersByStatus = async (status) => {
+  const [rows] = await db.query(
+    `SELECT * FROM ${ORDER_TABLE} WHERE status = ? ORDER BY created_at DESC`,
+    [status]
+  );
+  return attachItems(rows);
+};
+
 export const findOrdersByCustomerId = async (customer_id) => {
   const [rows] = await db.query(
-    `
-    SELECT 
-      o.*,
-      JSON_ARRAYAGG(
-        JSON_OBJECT(
-          'id', oi.id,
-          'list_id', oi.list_id,
-          'name', l.name,
-          'species', l.species,
-          'quantity', oi.quantity,
-          'price', oi.price
-        )
-      ) AS items
-    FROM ${ORDER_TABLE} o
-    LEFT JOIN ${ORDER_ITEMS_TABLE} oi ON oi.order_id = o.id
-    LEFT JOIN ${LIST_TABLE} l ON l.id = oi.list_id
-    WHERE o.customer_id = ?
-    GROUP BY o.id
-    ORDER BY o.created_at DESC
-  `,
+    `SELECT * FROM ${ORDER_TABLE} WHERE customer_id = ? ORDER BY created_at DESC`,
     [customer_id]
   );
-  return rows;
+  return attachItems(rows);
 };
 
-// items: [{ list_id, quantity }]
 export const createOrder = async ({
   customer_id,
   customer_name,
@@ -108,17 +84,15 @@ export const createOrder = async ({
   cod_schedule_at,
   items,
 }) => {
-  const conn = await db.getConnection();
+  const connection = await db.getConnection();
   try {
-    await conn.beginTransaction();
+    await connection.beginTransaction();
 
-    // Validate stock availability and calculate total
     let total_amount = 0;
     const resolvedItems = [];
 
     for (const item of items) {
-      // Lock the row to prevent race conditions
-      const [listRows] = await conn.query(
+      const [listRows] = await connection.query(
         `SELECT * FROM ${LIST_TABLE} WHERE id = ? AND status = 'available' FOR UPDATE`,
         [item.list_id]
       );
@@ -141,8 +115,7 @@ export const createOrder = async ({
 
     const order_number = generateOrderNumber();
 
-    // Insert the order
-    const [orderResult] = await conn.query(
+    const [orderResult] = await connection.query(
       `INSERT INTO ${ORDER_TABLE} 
         (customer_id, order_number, customer_name, customer_phone, customer_address, payment_method, notes, cod_schedule_at, total_amount)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -161,39 +134,35 @@ export const createOrder = async ({
 
     const order_id = orderResult.insertId;
 
-    // Insert order items and deduct stock
     for (const item of resolvedItems) {
-      await conn.query(
+      await connection.query(
         `INSERT INTO ${ORDER_ITEMS_TABLE} (order_id, list_id, quantity, price) VALUES (?, ?, ?, ?)`,
         [order_id, item.list_id, item.quantity, item.price]
       );
 
       const newStock = item.listItem.stock - item.quantity;
-
-      // Mark as sold if stock reaches zero
-      await conn.query(
+      await connection.query(
         `UPDATE ${LIST_TABLE} SET stock = ?, status = IF(? <= 0, 'sold', 'available') WHERE id = ?`,
         [newStock, newStock, item.list_id]
       );
     }
 
-    await conn.commit();
-
+    await connection.commit();
     return findOrderById(order_id);
   } catch (err) {
-    await conn.rollback();
+    await connection.rollback();
     throw err;
   } finally {
-    conn.release();
+    connection.release();
   }
 };
 
 export const cancelOrder = async (id) => {
-  const conn = await db.getConnection();
+  const connection = await db.getConnection();
   try {
-    await conn.beginTransaction();
+    await connection.beginTransaction();
 
-    const [rows] = await conn.query(
+    const [rows] = await connection.query(
       `SELECT * FROM ${ORDER_TABLE} WHERE id = ?`,
       [id]
     );
@@ -205,83 +174,55 @@ export const cancelOrder = async (id) => {
       throw new Error(`Order cannot be canceled, current status: ${order.status}`);
     }
 
-    // Restore stock for each item
-    const [items] = await conn.query(
+    const [items] = await connection.query(
       `SELECT * FROM ${ORDER_ITEMS_TABLE} WHERE order_id = ?`,
       [id]
     );
 
     for (const item of items) {
-      await conn.query(
-        `UPDATE ${LIST_TABLE} 
-         SET stock = stock + ?, status = 'available'
-         WHERE id = ?`,
+      await connection.query(
+        `UPDATE ${LIST_TABLE} SET stock = stock + ?, status = 'available' WHERE id = ?`,
         [item.quantity, item.list_id]
       );
     }
 
-    // Update order status to canceled
-    await conn.query(
+    await connection.query(
       `UPDATE ${ORDER_TABLE} SET status = 'canceled', canceled_at = NOW() WHERE id = ?`,
       [id]
     );
 
-    await conn.commit();
-
+    await connection.commit();
     return findOrderById(id);
   } catch (err) {
-    await conn.rollback();
+    await connection.rollback();
     throw err;
   } finally {
-    conn.release();
+    connection.release();
   }
 };
 
 export const completeOrder = async (id) => {
-  const [rows] = await db.query(
-    `SELECT * FROM ${ORDER_TABLE} WHERE id = ?`,
-    [id]
-  );
-  const order = rows[0];
+  const connection = await db.getConnection();
+  try {
+    const [rows] = await connection.query(
+      `SELECT * FROM ${ORDER_TABLE} WHERE id = ?`,
+      [id]
+    );
+    const order = rows[0];
 
-  if (!order) return null;
+    if (!order) return null;
 
-  if (order.status !== "ongoing") {
-    throw new Error(`Order cannot be completed, current status: ${order.status}`);
+    if (order.status !== "ongoing") {
+      throw new Error(`Order cannot be completed, current status: ${order.status}`);
+    }
+
+    await connection.query(
+      `UPDATE ${ORDER_TABLE} SET status = 'done', completed_at = NOW() WHERE id = ?`,
+      [id]
+    );
+
+    return findOrderById(id);
+  } finally {
+    connection.release();
   }
-
-  // Update order status to done
-  await db.query(
-    `UPDATE ${ORDER_TABLE} SET status = 'done', completed_at = NOW() WHERE id = ?`,
-    [id]
-  );
-
-  return findOrderById(id);
-};
-
-export const findOrdersByStatus = async (status) => {
-  const [rows] = await db.query(
-    `
-    SELECT 
-      o.*,
-      JSON_ARRAYAGG(
-        JSON_OBJECT(
-          'id', oi.id,
-          'list_id', oi.list_id,
-          'name', l.name,
-          'species', l.species,
-          'quantity', oi.quantity,
-          'price', oi.price
-        )
-      ) AS items
-    FROM ${ORDER_TABLE} o
-    LEFT JOIN ${ORDER_ITEMS_TABLE} oi ON oi.order_id = o.id
-    LEFT JOIN ${LIST_TABLE} l ON l.id = oi.list_id
-    WHERE o.status = ?
-    GROUP BY o.id
-    ORDER BY o.created_at DESC
-  `,
-    [status]
-  );
-  return rows;
 };
