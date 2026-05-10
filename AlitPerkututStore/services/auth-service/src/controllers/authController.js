@@ -61,7 +61,7 @@ export const register = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: "Berhasil register",
+      message: "Register successfully",
       data: newUser,
       accessToken,
     });
@@ -78,10 +78,12 @@ export const register = async (req, res) => {
 // Register admin
 export const registerAdmin = async (req, res) => {
   try {
-    if (req.headers["x-user-tole"] !== "owner") {
-      return res
-        .status(403)
-        .json({ message: "Forbidden. Only owner can create " });
+    const role = req.headers["x-user-role"];
+
+    if (role !== "admin") {
+      return res.status(403).json({
+        message: "Forbidden access",
+      });
     }
 
     const adminRole = "admin";
@@ -134,7 +136,7 @@ export const registerAdmin = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: "Berhasil register",
+      message: "Admin register successfully",
       data: newAdmin,
       accessToken,
     });
@@ -295,7 +297,6 @@ export const refresh = async (req, res) => {
     return res.status(200).json({
       accessToken: newAccessToken,
     });
-
   } catch (err) {
     console.error(err);
 

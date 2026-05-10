@@ -1,8 +1,10 @@
 import express from "express";
+import cookieParser from "cookie-parser";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import verifyToken from "./authMiddleware.js";
 
 const app = express();
+app.use(cookieParser());
 const port = 4098;
 
 app.use((req, res, next) => {
@@ -10,35 +12,40 @@ app.use((req, res, next) => {
   next();
 });
 
-// Auth
-const authProxy = createProxyMiddleware({
-  target: "http://localhost:4198",
-  changeOrigin: true,
-  pathRewrite: {
-    "^/api/auth": "",
-  },
-  on: {
-    proxyReq: (proxyReq, req) => {
-      // Only inject if user logged in
-      if (req.user) {
-        proxyReq.setHeader("x-user-id", req.user.id);
-        proxyReq.setHeader("x-user-role", req.user.role);
-      }
-    },
+const injectUser = (proxyReq, req) => {
+  console.log(`[PROXY] forwarding to: ${proxyReq.path}`);
+  if (req.user) {
+    proxyReq.setHeader("x-user-id", req.user.id);
+    proxyReq.setHeader("x-user-role", req.user.role);
+  }
+};
 
-    error: (err, req, res) => {
-      console.error(err);
+const onError = (err, req, res) => {
+  console.error(err);
+  res.status(500).json({ message: "Proxy error" });
+};
 
-      res.status(500).json({
-        message: "Proxy error",
-      });
-    },
-  },
-});
+// public — tidak perlu token
+app.use(
+  createProxyMiddleware({
+    pathFilter: "/api/auth/public",
+    target: "http://localhost:4198",
+    changeOrigin: true,
+    on: { proxyReq: injectUser, error: onError },
+  })
+);
 
-app.use("/api/auth/public", authProxy);
-
-app.use("/api/auth/register-admin", verifyToken, authProxy);
+// admin — wajib token
+app.use(
+  "/api/auth/admin",
+  verifyToken,
+  createProxyMiddleware({
+    pathFilter: "/api/auth/admin",
+    target: "http://localhost:4198",
+    changeOrigin: true,
+    on: { proxyReq: injectUser, error: onError },
+  })
+);
 
 app.use((req, res) => {
   console.log(`[NO MATCH] ${req.method} ${req.path}`);

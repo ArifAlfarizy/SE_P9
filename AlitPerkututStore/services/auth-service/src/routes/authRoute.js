@@ -6,14 +6,12 @@ import {
   register,
   registerAdmin,
 } from "../controllers/authController.js";
-import verifyToken from "../middlewares/authMiddleware.js";
-
 const authRouter = express.Router();
 
-authRouter.post("/register", register);
-authRouter.post("/register-admin", registerAdmin);
-authRouter.post("/login", login);
-authRouter.post("/logout", logout);
-authRouter.post("/refresh", refresh);
+authRouter.post("/public/register", register);
+authRouter.post("/admin/register", registerAdmin);
+authRouter.post("/public/login", login);
+authRouter.post("/public/logout", logout);
+authRouter.post("/public/refresh", refresh);
 
 export default authRouter;
